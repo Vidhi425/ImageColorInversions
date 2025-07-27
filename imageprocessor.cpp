@@ -1,6 +1,7 @@
 #include "imageprocessor.h"
 #include <QStandardPaths>
 #include <QDir>
+#include <QUrl>
 
 ImageProcessor::ImageProcessor(QObject *parent)
     : QObject{parent}
@@ -10,48 +11,37 @@ ImageProcessor::ImageProcessor(QObject *parent)
 void ImageProcessor::processImages(const QStringList &filePaths)
 {
     qDebug() << "Processing" << filePaths.size() << "files";
-
     if (filePaths.empty()) {
         qDebug() << "No files provided";
         return;
     }
-
     originalPaths.clear();
     invertedImages.clear();
     invertedImagePaths.clear();
-
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QString previewFolder = tempDir + "/ColorInvertPreview";
     QDir().mkpath(previewFolder);
-
     qDebug() << "Temp folder:" << previewFolder;
-
     int processedCount = 0;
     for (int i = 0; i < filePaths.size(); ++i)
     {
         QString path = filePaths[i];
         qDebug() << "Original path:" << path;
-
         if (path.startsWith("file://")) {
             path = path.mid(7);
-
 #ifdef Q_OS_WIN
             if (path.startsWith("/")) {
                 path = path.mid(1);
             }
 #endif
         }
-
         qDebug() << "Cleaned path:" << path;
-
         QImage image(path);
         if (image.isNull()) {
             qDebug() << "Failed to load image:" << path;
             continue;
         }
-
         qDebug() << "Image loaded successfully, size:" << image.size();
-
         QImage inverted = image;
         for (int y = 0; y < image.height(); ++y) {
             for (int x = 0; x < image.width(); ++x) {
@@ -62,24 +52,23 @@ void ImageProcessor::processImages(const QStringList &filePaths)
                 inverted.setPixelColor(x, y, color);
             }
         }
-
         invertedImages.append(inverted);
         originalPaths.append(path);
-
         QString tempPath = QString("%1/inverted_preview_%2.png").arg(previewFolder).arg(i + 1);
         if (inverted.save(tempPath)) {
             qDebug() << "Saved preview to:" << tempPath;
-            invertedImagePaths.append(tempPath);
+            QString qmlPath = QUrl::fromLocalFile(tempPath).toString();
+            invertedImagePaths.append(qmlPath);
             processedCount++;
         } else {
             qDebug() << "Failed to save preview:" << tempPath;
         }
     }
-
     qDebug() << "Processed" << processedCount << "images successfully";
     qDebug() << "Emitting imagesLoaded signal";
     emit imagesLoaded();
 }
+
 
 void ImageProcessor::saveInvertedImages(const QString &folderpath)
 {
